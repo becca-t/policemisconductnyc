@@ -1,0 +1,75 @@
+---
+title: "Geocoding with FiveThirtyEight's Police Misconduct Data"
+author: "Becca Tramel"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## FiveThirtyEight and The Marshall Project's Police Misconduct Data
+
+FiveThirtyEight and the Marshall Project collected data about police misconduct cases in major US cities via a FOIA request. You can read about it [here](https://github.com/fivethirtyeight/police-settlements). While many cities reported limited data on the locations of the incidents, New York City provided the adresses. 
+
+In total, there are 32,632 cases described in the data reported by New York City. In the rest of this file I will walk through the process of taking a stratified sample of this data and using Google's API to find the latitude and longitude for each case in the sample.
+
+## Taking a Sample Stratified by Year
+
+Each case in the data from New York City is associated with three years: the year of the incident (*incident_year*), the year the case was filed (*filed_year*), and the year the case was closed (*calendar_year*). For my purposes I was interested in patterns in the year and location of the incidents.
+
+The incident years range from 1980 (1 case) to 2019 (154 cases), but the large majority of cases occur between 2008 and 2018. For each year in this time range there are more than 1100 cases, with a maximum of 4039 from 2012. 
+
+To look for patterns by year, I used the *tidyverse* package to take a random sample of 100 cases from each year from 2008 to 2018. 
+
+```{r}
+library(tidyverse)
+
+# To import the data from FiveThirtyEight's github page:
+new_york_edited <- read_csv(url("https://raw.githubusercontent.com/fivethirtyeight/police-settlements/main/new_york_ny/final/new_york_edited.csv"))
+
+# To restrict to the years 2008 to 2018 I used filter():
+new_york_2008_to_2018 <- filter(new_york_edited, incident_year >= 2008 & incident_year <= 2018)
+
+# To take the stratified sample:
+set.seed(22)
+stratified_ny_sample <- new_york_2008_to_2018 %>%
+  group_by(incident_year) %>%
+  sample_n(100)
+```
+
+
+## Geocoding with Google's API
+
+In order to obtain the latitude and longitude from Google's API, this data requires a small amount of cleaning. 
+
+  * The location variable needs to be converted from integer to character. 
+  * Although Google Maps is happy to accept intersections with an "&" in the middle of the two streets, this does not work in the API. If the "&" is left in the address, the latitudes and longitudes will be based only the addresses up until that symbol. We can solve this by replacing the "&" with the word "and" using the *stringr*  package (part of the tidyverse).
+  
+```{r}
+# Fixing the variable type:
+stratified_ny_sample$location <- as.character(stratified_ny_sample$location)
+
+# Replacing the & with and in each address:
+stratified_ny_sample$location <- str_replace(stratified_ny_sample$location, "&", "and")
+```
+
+Once this cleaning is performed, we can use the command *mutate_geocode()* to pull the location data from Google's API. In order to do this we'll need to have an API key and use *register_google()* to tell Google who we are. We'll use the package [ggmap](https://journal.r-project.org/archive/2013-1/kahle-wickham.pdf) to do this.
+
+```{r, echo = FALSE} 
+library(ggmap)
+
+register_google(key = "")
+```
+
+```{r, results = "hide", message = FALSE, warning = FALSE}
+stratified_ny_sample_locations <- mutate_geocode(stratified_ny_sample, location)
+```
+
+After inputting your own API key and running this code you will have a sample of 100 police misconduct cases per incident year from 2008 to 2018, along with latitude and longitude for each incident.
+
+```{r}
+write_csv(stratified_ny_sample_locations, "locationsstrat2")
+```
+
+
