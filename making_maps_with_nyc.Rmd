@@ -1,0 +1,62 @@
+---
+title: "Looking at Police Misconduct Incidents in NYC"
+author: "Becca Tramel"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Looking at the Data
+
+The file *locationsstrat2* was built using [FiveThirtyEight's data on police misconduct settlements](https://github.com/fivethirtyeight/police-settlements). It contains 100 random cases from each of  the years from 2008 - 2018. These years were chosen because each has at least 1000 cases in the original data set. 
+
+We then cleaned the *location* column and used the package *ggmap* to obtain the latitude and longitude of each incident. 
+
+```{r}
+library(tidyverse)
+
+locationstrat2 <- read_csv(url("https://raw.githubusercontent.com/becca-t/policemisconductnyc/main/locationsstrat2"))
+
+```
+
+## Using ggmap() to Create a Map
+
+We can use [ggmap](http://journal.r-project.org/archive/2013-1/kahle-wickham.pdf) to create a map of NYC. Then we'll use *ggplot2* to plot our locations on top of this map. At first we'll plot them together, then break them up by year.
+
+I found [this blog](https://www.jessesadler.com/post/geocoding-with-r/) incredibly helpful in learning about some of the features of the ggmap package. 
+
+First we'll enter our key for Google's API.
+
+```{r, echo = FALSE}
+library(ggmap)
+
+register_google(key = "")
+```
+
+Then we'll create our map of NYC. 
+
+```{r, message=FALSE}
+ny_map <- get_googlemap(center = c(lon = -74.0060, lat = 40.7128), zoom = 11)
+```
+
+```{r}
+ggmap(ny_map)
+```
+
+Now we can use *ggplot2* to add our data to the map. I'm going to make two versions below. One will include all of the data in one map, and the other will create a map for each year. 
+
+```{r}
+# Making a single map:
+ggmap(ny_map) + 
+  geom_point(data = locationstrat2, aes(x = lon, y = lat), alpha = 0.2)
+
+# Making a map for each year:
+ggmap(ny_map) + 
+  geom_point(data = locationstrat2, aes(x = lon, y = lat), alpha = 0.2) +
+  facet_wrap(~incident_year)
+
+```
+
+
