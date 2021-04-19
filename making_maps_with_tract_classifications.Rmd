@@ -90,13 +90,63 @@ Some conclusions:
   * Other low-income neighborhoods are not overrepresented in the data. (14% of the cases were in these neighborhoods, compared with 15.3% of neighborhoods overall fitting into these categories.)
   
 Of course, these neighborhoods are not all equally sized! We'd need to account for population to better study this pattern. 
+
+## Adding in Populations for Further Study
+
+Populations for census tracts (as of 2010) are available from the [Census website here](https://www.census.gov/geographies/reference-files/2010/geo/2010-centers-population.html). Here is the file for New York.
+
+```{r}
+census_tract_pops <- read_csv(url("https://www2.census.gov/geo/docs/reference/cenpop2010/tract/CenPop2010_Mean_TR36.txt"))
+```
+
+To turn this into a compatible dataframe, we'll need to do a little bit of cleaning. In particular, we'll have to combine the first three columns to get the census tract. 
+
+```{r}
+census_tract_pops2 <- select(census_tract_pops, -LATITUDE, - LONGITUDE)
+
+census_tract_pops2$TRACT <- str_c(as.character(census_tract_pops2$STATEFP), census_tract_pops2$COUNTYFP, census_tract_pops2$TRACTCE)
+
+census_tract_pops2 <- select(census_tract_pops2, TRACT, POPULATION)
+```
+
+Now we can join this with our existing list of New York City census tracts to study the population of each classification.
+
+```{r}
+census_tract_pops2$TRACT <- as.numeric(census_tract_pops2$TRACT)
+
+ny_classifications_and_pop <- left_join(nyc_classifications, census_tract_pops2, by = c("geoid" = "TRACT"))
+```
+
+With this information, we can now figure out the percentage of the population of NYC living in each classification of neighborhood.
+
+```{r}
+population_by_class <- ny_classifications_and_pop %>%
+  group_by(Type_1.19) %>%
+  summarize(population = sum(POPULATION))
+
+population_by_class$pop_pct <- population_by_class$population/sum(population_by_class$population)
+```
+
+
+```{r}
+write_csv(population_by_class, "population_by_class.csv")
+```
+
+With this information we can draw the following conclusions.
+
+  * 11.7% of New Yorkers live in "At Risk of Gentrification" neighborhoods, but 24% of incidents in our sample take place in such neighborhoods.
+  * 11.1% of New Yorkers live in neighborhoods with "Ongoing Displacement of Low-Income Households" but 16.7% of incidents in our sample take place in such neighborhoods.
+  * 12.0% of New Yorkers live in neighborhoods with "Ongoing Gentrification" but 20.6% of incidents in our sample take place in these neighborhoods.
+  * Interestingly, 13.8% of New Yorkers live in neighborhoods classified as Low-Income but "Not Losing Low-Income Households", and 14% of incidents in our sample take place in such neighborhoods.
+  
+In other words, it doesn't appear that being in a low-income neighborhood greatly increases the likelihood of reporting an incident of police misconduct leading to a settlement, but living in a gentrifying neighborhood does.
   
 ## A Map to Display the Data
 
 First I'll make a map of New York City.
 
 ```{r, echo = FALSE}
-register_google(key =)
+register_google(key = )
 ```
 
 ```{r, message = FALSE}
