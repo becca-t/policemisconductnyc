@@ -1,0 +1,112 @@
+---
+title: "Mapping Police Misconduct Settlements by Neighborhood Classification"
+author: "Becca Tramel"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+My earlier map shows the incident locations for a stratified sample of police misconduct settlements by year (2008-2018). A friend noticed a similarity between the maps I made and maps of gentrification in New York City.
+
+I found the [Urban Displacement Project](https://www.urbandisplacement.org/maps/ny) while looking at this connection. They've created a data set classifying census tracts in New York City by level of gentrification using census data. 
+
+Since I'd already geocoded my sample using the Google API, I had latitude and longitude for almost all of my incidents. I then used [Federal Communications Commission API](https://geo.fcc.gov/api/census/) to get census tract information for each incident (see my Jupyter notebook to see how.) 
+
+I now have a file with the coordinates of each incident along with a census tract. I'm going to join this with the classifications from the Urban Displacement Project and remake my map.
+
+## Adding a Neighborhood Classification to the Data
+
+```{r, echo = FALSE}
+library(tidyverse)
+library(ggmap)
+
+```
+
+```{r}
+# First I'll import the locations.
+coords_with_tracts <- read_csv(url("https://raw.githubusercontent.com/becca-t/policemisconductnyc/main/coords_with_tracts"))
+
+# I'll now import the classifications (available at https://www.urbandisplacement.org/maps/ny)
+
+classifications <- read_csv("udp_ny_final_typology_jan_2019.csv")
+```
+
+Now I'll combine the two data sets to add a classification column to the sample of incident locations. 
+
+```{r}
+# First we let R know that tract is numerical.
+coords_with_tracts$tract <- as.numeric(coords_with_tracts$tract)
+
+# Creating the joined table.
+coords_with_class <- left_join(coords_with_tracts, classifications, by = c("tract" = "geoid"))
+```
+
+## Studying the Neighborhood Classifications
+
+Now that the classifications are added, I'll start by looking at some summary statistics.
+
+```{r}
+prop.table(table(coords_with_class$Type_1.19))
+```
+
+From this, we learn that 
+  
+    * 24.0% of cases in our sample are classified as "At Risk of Gentrification"
+    * 20.6% are classified as "Ongoing Gentrification"
+    * 16.7% are classified as "Ongoing Displacement of Low-Income Households. 
+    
+According to the Urban Displacement Project, these are three categories that describe low-income neighborhoods. 
+
+  * The neighborhoods described as "At Risk of Gentrification" are "Hot markets" from 2000 - 2016 (places where median rent changes are increasing more quickly than the regional average). 
+  * Neighborhoods described as "Ongoing Gentrification" are "gentrifying" in 1990-2000 or 2000-2016 (changes in both median income and percentage of college educated residents are increasing greater than the regional average).
+  * "Ongoing Displacement of Low-Income Households" are neighborhoods described as losing low-income households in 2000-2016.  
+  
+The other category of low-income neighborhoods, "Not Losing Low-Income Households", accounts for 14.0% of the data.
+
+With this summary information in front of us, it might be helpful to compare with the percentages for neighborhoods in New York City overall. 
+
+```{r}
+# Some of the counties in the classifications data are outside of New York (in Connecticut and New Jersey), or in nearby counties. First we'll filter down to the 5 counties of NYC.
+nyc_classifications <- filter(classifications, str_detect(geoid, "36047[0-9]{6}") | str_detect(geoid, "36059[0-9]{6}") | str_detect(geoid, "36061[0-9]{6}") | str_detect(geoid, "36085[0-9]{6}") | str_detect(geoid, "36005[0-9]{6}"))
+
+prop.table(table(nyc_classifications$Type_1.19))
+```
+
+From here, we can see that these four low-income neighborhood types make up a much smaller percentage of neighborhoods overall.
+
+  * At risk of gentrification: 9.6%
+  * Ongoing gentrification: 10.8%
+  * Ongoing displacement of low-income households: 11.1%
+  * Not losing low-income households: 15.3%
+  
+Some conclusions:
+
+  * Neighborhoods which are at risk for or currently undergoing gentrification are vastly overrepresented in the police misconduct settlement data.
+  * Specifically: neighborhoods "at risk of gentrification" show up about 2.5 times as much as expected, neighborhoods with "ongoing gentrification" show up about 1.9 times as much as expected, and neighborhoods with "ongoing displacement of low-income households" show up about 1.5 times as much as expected.
+  * Other low-income neighborhoods are not overrepresented in the data. (14% of the cases were in these neighborhoods, compared with 15.3% of neighborhoods overall fitting into these categories.)
+  
+Of course, these neighborhoods are not all equally sized! We'd need to account for population to better study this pattern. 
+  
+## A Map to Display the Data
+
+First I'll make a map of New York City.
+
+```{r, echo = FALSE}
+register_google(key =)
+```
+
+```{r, message = FALSE}
+map_of_nyc <- get_googlemap(center = c(lon = -74.0060, lat = 40.7128), zoom = 11)
+```
+
+Now I'll overlay the map with our cases, colored by neighborhood classification.
+
+```{r}
+ggmap(map_of_nyc) + 
+  geom_point(data = coords_with_class, aes(x = lon, y = lat, color = Type_1.19), alpha = 0.5) 
+
+```
